@@ -28,7 +28,6 @@ const __filename = fileURLToPath(
 const __dirname = path.dirname(__filename)
 const DATE_FORMAT = 'YYYY-MM-DD'
 const today = dayjs()
-const todayAsStr = today.format(DATE_FORMAT)
 
 const authToken = argv.auth || process.env.KITE_AUTH
 if (!authToken) {
