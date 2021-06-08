@@ -36,10 +36,7 @@ if (!authToken) {
     process.exit(1)
 }
 const maxDays = argv.maxDays || 1
-if (maxDays > 60) {
-    console.warn("We can't fetch data more than 60 days")
-    process.exit(1)
-}
+
 const maxFetchRetries = argv.maxFetchRetries || 3
 if (maxFetchRetries < 1) {
     console.warn("--maxFetchRetries can't be a negative number")
@@ -89,7 +86,7 @@ const parseCsvWithHeaders = async (csvAsString) => {
 
 const filterOnlyNiftyBankNiftyAndFinNiftyData = async (instruments) => {
     return instruments.filter(instrument => {
-        return instrument.name === 'NIFTY' || instrument.name === 'BANKNIFTY' || instrument.name === 'FINNIFTY'
+        return instrument.name === 'NIFTY' || instrument.name === 'BANKNIFTY' || instrument.name === 'FINNIFTY' || instrument.tradingsymbol === "NIFTY 50" || instrument.tradingsymbol === "NIFTY BANK" || instrument.tradingsymbol === "INDIA VIX"
     })
 }
 
@@ -131,17 +128,33 @@ const fetchAndWriteData = async (instruments) => {
         }
     })
 
-    const requests = instruments.slice(0, 1)
-        /*.filter(instrument => {
-                const directory = directoryForInstrument(instrument)
-                const markerFile = markerFileForInstrument(instrument)
+    const requests = []
+    instruments
+        .filter(instrument => {
+            return _.range(maxDays).some(daysFromToday => {
+                const tempInstrument = {
+                    ...instrument
+                }
+                tempInstrument.date = dayjs().subtract(daysFromToday, 'days').format(DATE_FORMAT)
+                const directory = directoryForInstrument(tempInstrument)
+                const markerFile = markerFileForInstrument(tempInstrument)
                 return !fs.existsSync(path.resolve(directory, markerFile))
-            })*/
-        .map(instrument => {
-            // TODO: We should at somepoint support ability to fetch more data more than 60 days by spliting it into multiple requests of 60 days each?
-            const fromDate = today.subtract(maxDays, 'days').format(DATE_FORMAT)
-            const toDate = todayAsStr
-            return throttledFetch(instrument, instrument.instrument_token, fromDate, toDate, 1).then((instruments) => Promise.all(instruments.map(writeData)))
+            })
+        }).forEach(instrument => {
+            var lastFetchDate = today
+            var daysRemaining = maxDays
+
+            while (daysRemaining > 0) {
+                const daysFetched = daysRemaining > 60 ? 60 : daysRemaining
+                const fromDate = lastFetchDate.subtract(daysFetched, 'days')
+                const fromDateStr = fromDate.format(DATE_FORMAT)
+                const toDate = lastFetchDate.format(DATE_FORMAT)
+                const result = throttledFetch(instrument, instrument.instrument_token, fromDateStr, toDate, 1).then((instruments) => Promise.all(instruments.map(writeData)))
+                requests.push(result)
+
+                lastFetchDate = fromDate
+                daysRemaining = Math.abs(daysRemaining - daysFetched)
+            }
         })
 
     // Don't remove the tickers which doesn't have any data.
@@ -159,13 +172,14 @@ const breakResultsIntoChunksForEachDay = (resultFromKite) => {
 }
 
 const directoryForInstrument = (instrument) => path.resolve(__dirname, "data", instrument.date, instrument.name)
-const dataFileForInstrument = (instrument) => `${instrument.name}_${instrument.tradingsymbol}_${instrument.expiry}.csv`
+const dataFileForInstrument = (instrument) => _.chain([instrument.name, instrument.tradingsymbol, instrument.expiry]).filter((s) => _.isString(s) ? !!_.trim(s) : _.isEmpty(s)).join('_') + '.csv'
 const markerFileForInstrument = (instrument) => `${dataFileForInstrument(instrument)}.done`
 
 // unlike the other method we call this after each fetch so we can write
 // as we fetch and not wait unitl we've fetched everything.
 // reduces the memory usage of the program
 const writeData = async (instrument) => {
+    console.log(instrument)
     const directory = directoryForInstrument(instrument)
     fs.mkdirSync(directory, {
         recursive: true
@@ -192,7 +206,7 @@ const writeData = async (instrument) => {
 }
 
 // Entry point of the program
-getAsText("https://api.kite.trade/instruments/NFO")
+getAsText("https://api.kite.trade/instruments")
     .then(parseCsvWithHeaders)
     .then(filterOnlyNiftyBankNiftyAndFinNiftyData)
     .then(fetchAndWriteData)
