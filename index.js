@@ -75,7 +75,6 @@ const parseCsvWithHeaders = async (csvAsString) => {
             .on('error', error => reject(error))
             .on('data', row => {
                 delete row.last_price // this is always 0 from the KITE API
-                delete row.exchange // this is always inferred to be NFO
                 delete row.exchange_token // we don't need this for history as it is useless after it's expiry
                 instruments.push(row)
             })
@@ -127,7 +126,8 @@ const fetchAndWriteData = async (instruments) => {
 
         } catch (err) {
             if (fetchAttempt < 3) {
-                console.warn(`Attempting to fetch ${url} once again. We'll try it ${3 - fetchAttempt} more times, before bailing out.`)
+                console.error(err)
+                console.warn(`Scheduling to fetch ${url} once again. We'll try it ${3 - fetchAttempt} more times, before bailing out.`)
                 return await throttledFetch(row, token, fromDate, toDate, fetchAttempt + 1 || 2)
             } else {
                 throw err
@@ -138,15 +138,16 @@ const fetchAndWriteData = async (instruments) => {
     const requests = []
     instruments
         .filter(instrument => {
-            return _.range(maxDays).some(daysFromToday => {
+            const isDataPresentForAllTheDays = _.range(maxDays).every(daysFromToday => {
                 const tempInstrument = {
                     ...instrument
                 }
                 tempInstrument.date = dayjs().subtract(daysFromToday, 'days').format(DATE_FORMAT)
                 const directory = directoryForInstrument(tempInstrument)
                 const markerFile = markerFileForInstrument(tempInstrument)
-                return !fs.existsSync(path.resolve(directory, markerFile))
+                return fs.existsSync(path.resolve(directory, markerFile))
             })
+            return !isDataPresentForAllTheDays
         }).forEach(instrument => {
             var lastFetchDate = today
             var daysRemaining = maxDays
