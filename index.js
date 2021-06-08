@@ -179,7 +179,6 @@ const markerFileForInstrument = (instrument) => `${dataFileForInstrument(instrum
 // as we fetch and not wait unitl we've fetched everything.
 // reduces the memory usage of the program
 const writeData = async (instrument) => {
-    console.log(instrument)
     const directory = directoryForInstrument(instrument)
     fs.mkdirSync(directory, {
         recursive: true
