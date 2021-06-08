@@ -18,6 +18,7 @@ import {
     writeToPath
 } from '@fast-csv/format';
 import dayjs from 'dayjs'
+import _ from 'lodash'
 
 import {
     fileURLToPath
@@ -107,10 +108,19 @@ const fetchAndWriteData = async (instruments) => {
                 throw new Error(result.message)
             }
 
-            return {
-                ...result,
-                ...row,
-            }
+            const resultsByDate = breakResultsIntoChunksForEachDay(result)
+            const dates = _.keys(resultsByDate)
+            return dates.map((date) => {
+                const candles = resultsByDate[date]
+                return {
+                    data: {
+                        candles: candles
+                    },
+                    date: date,
+                    ...row,
+                }
+            })
+
         } catch (err) {
             if (fetchAttempt < 3) {
                 console.warn(`Attempting to fetch ${url} once again. We'll try it ${3 - fetchAttempt} more times, before bailing out.`)
@@ -121,23 +131,34 @@ const fetchAndWriteData = async (instruments) => {
         }
     })
 
-    const requests = instruments.slice(0, 5).filter(instrument => {
-        const directory = directoryForInstrument(instrument)
-        const markerFile = markerFileForInstrument(instrument)
-        return !fs.existsSync(path.resolve(directory, markerFile))
-    }).map(instrument => {
-        // TODO: We should at somepoint support ability to fetch more data more than 60 days by spliting it into multiple requests of 60 days each?
-        const fromDate = today.subtract(maxDays, 'days').format(DATE_FORMAT)
-        const toDate = todayAsStr
-        return throttledFetch(instrument, instrument.instrument_token, fromDate, toDate, 1).then(writeData)
-    })
+    const requests = instruments.slice(0, 1)
+        /*.filter(instrument => {
+                const directory = directoryForInstrument(instrument)
+                const markerFile = markerFileForInstrument(instrument)
+                return !fs.existsSync(path.resolve(directory, markerFile))
+            })*/
+        .map(instrument => {
+            // TODO: We should at somepoint support ability to fetch more data more than 60 days by spliting it into multiple requests of 60 days each?
+            const fromDate = today.subtract(maxDays, 'days').format(DATE_FORMAT)
+            const toDate = todayAsStr
+            return throttledFetch(instrument, instrument.instrument_token, fromDate, toDate, 1).then((instruments) => Promise.all(instruments.map(writeData)))
+        })
 
     // Don't remove the tickers which doesn't have any data.
     // The fact that there aren't any data available is also a good information to record.
     return Promise.all(requests)
 }
 
-const directoryForInstrument = (instrument) => path.resolve(__dirname, "data", instrument.name, todayAsStr)
+// the idea is to break the single Historical Candle we get from Kite Response into smaller chunks, one for each date
+// that way we write the data into the respective dates than managing a base version with maxDays and updating it going forward
+// if we want to go back and fetch data that would also be hard because the file names might end up overwriting each other
+const breakResultsIntoChunksForEachDay = (resultFromKite) => {
+    const candles = resultFromKite.data.candles
+    const groups = _.groupBy(candles, (candle) => dayjs(candle[0]).format(DATE_FORMAT))
+    return groups
+}
+
+const directoryForInstrument = (instrument) => path.resolve(__dirname, "data", instrument.date, instrument.name)
 const dataFileForInstrument = (instrument) => `${instrument.name}_${instrument.tradingsymbol}_${instrument.expiry}.csv`
 const markerFileForInstrument = (instrument) => `${dataFileForInstrument(instrument)}.done`
 
