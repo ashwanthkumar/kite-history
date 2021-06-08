@@ -35,6 +35,11 @@ if (!authToken) {
     process.exit(1)
 }
 const maxDays = argv.maxDays || 1
+const exchangeFilter = argv.exchange
+if (exchangeFilter !== "NFO" || exchangeFilter !== "NSE") {
+    console.warn("Invalid Exchange Filter given, it should be either of NFO / NSE")
+    process.exit(1)
+}
 
 const maxFetchRetries = argv.maxFetchRetries || 3
 if (maxFetchRetries < 1) {
@@ -83,9 +88,12 @@ const parseCsvWithHeaders = async (csvAsString) => {
     })
 }
 
-const filterOnlyNiftyBankNiftyAndFinNiftyData = async (instruments) => {
+const filterRequiredScrips = async (instruments) => {
     return instruments.filter(instrument => {
-        return instrument.name === 'NIFTY' || instrument.name === 'BANKNIFTY' || instrument.name === 'FINNIFTY' || instrument.tradingsymbol === "NIFTY 50" || instrument.tradingsymbol === "NIFTY BANK" || instrument.tradingsymbol === "INDIA VIX"
+        return (exchangeFilter ? instrument.exchange === exchangeFilter : true) &&
+            (
+                ['NIFTY', 'BANKNIFTY', 'FINNIFTY'].some(name => instrument.name === name) || ['NIFTY 50', 'NIFTY BANK', 'INDIA VIX'].some(tradingsymbol => instrument.tradingsymbol === tradingsymbol)
+            )
     })
 }
 
@@ -206,5 +214,5 @@ const writeData = async (instrument) => {
 // Entry point of the program
 getAsText("https://api.kite.trade/instruments")
     .then(parseCsvWithHeaders)
-    .then(filterOnlyNiftyBankNiftyAndFinNiftyData)
+    .then(filterRequiredScrips)
     .then(fetchAndWriteData)
