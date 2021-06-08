@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env node --unhandled-rejections=strict
 
 import path from 'path'
 import * as fs from 'fs'
@@ -34,17 +34,11 @@ if (!authToken) {
     console.warn("Auth token not found / specified. Consider passing KITE_AUTH environment variable or --auth while running the program")
     process.exit(1)
 }
-const maxDays = args.maxDays || 1
+const maxDays = argv.maxDays || 1
 if (maxDays > 60) {
     console.warn("We can't fetch data more than 60 days")
     process.exit(1)
 }
-
-// make sure the output directory exists for today
-const directory = path.resolve(__dirname, "data", todayAsStr)
-fs.mkdirSync(directory, {
-    recursive: true
-})
 
 const getAsText = async (url) => {
     const result = await fetch(url, {
@@ -128,6 +122,11 @@ const fetchAndWriteData = async (rows) => {
 // as we fetch and not wait unitl we've fetched everything.
 // reduces the memory usage of the program
 const writeDataToCsv = async (instrument) => {
+    const directory = path.resolve(__dirname, "data", instrument.name, todayAsStr)
+    fs.mkdirSync(directory, {
+        recursive: true
+    })
+
     const filename = `${instrument.name}_${instrument.tradingsymbol}_${instrument.expiry}.csv`
     const fullPath = path.resolve(directory, filename)
 
