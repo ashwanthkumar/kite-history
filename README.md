@@ -10,8 +10,10 @@ $ npm install
 
 Auth token is generated as per the documentation at https://kite.trade/docs/connect/v3/user/.
 ```
-$ KITE_AUTH="<authToken>" node --unhandled-rejections=strict index.js
+$ KITE_AUTH="<authToken>" ./index.js --maxDays 1000
 ```
+
+Ideally you can change the maxDays to a more real number like 30 for the seed run and then keep running it with just 7 to sync all the data locally. Make sure Kite API doesn't provide access to expired instruments (which are very common for Weekly Expires), so have that in mind when you're caching the data locally.
 
 ## Goals
 - Ability to build a database of 1minute options data for 3 broad indices that are traded on Indian Market - NIFTY, BANKNIFTY and FINNIFTY.
