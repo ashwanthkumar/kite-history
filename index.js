@@ -113,8 +113,8 @@ const fetchAndWriteData = async (rows) => {
     })
 
     const requests = rows.map(row => {
-        // This 60 days would be translated to 1 day after the initial dump
-        const fromDate = today.subtract(60, 'days').format(DATE_FORMAT)
+        // TODO: We should at somepoint support ability to fetch more data more than 60 days by spliting it into multiple requests of 60 days each
+        const fromDate = today.subtract(maxDays, 'days').format(DATE_FORMAT)
         const toDate = todayAsStr
         return throttledFetch(row, row.instrument_token, fromDate, toDate).then(writeDataToCsv)
     })
@@ -143,9 +143,7 @@ const writeDataToCsv = async (instrument) => {
     console.log(`Done writing ${filename}`)
 }
 
-
-console.log(`Authorization: ${authToken}`)
-
+// Entry point of the program
 getAsText("https://api.kite.trade/instruments/NFO")
     .then(parseCsvWithHeaders)
     .then(filterOnlyNiftyBankNiftyAndFinNiftyData)
