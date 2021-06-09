@@ -36,7 +36,7 @@ if (!authToken) {
 }
 const maxDays = argv.maxDays || 1
 const exchangeFilter = argv.exchange
-if (exchangeFilter !== "NFO" && exchangeFilter !== "NSE") {
+if (exchangeFilter && exchangeFilter !== "NFO" && exchangeFilter !== "NSE") {
     console.warn("Invalid Exchange Filter given, it should be either of NFO / NSE")
     process.exit(1)
 }
